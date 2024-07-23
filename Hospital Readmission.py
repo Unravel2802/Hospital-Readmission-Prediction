@@ -45,12 +45,33 @@ df_scaled = pd.DataFrame(df_scaled, columns=df.columns)
 
 X = df_scaled.drop('readmitted_yes', axis=1)
 Y = df_scaled['readmitted_yes']
+threshold = 0.5  # Adjust based on your dataset and problem
+Y_binary = (Y > threshold).astype(int)
 
-X_train, X_test, Y_train, Y_test = train_test_split(X,Y, test_size = 0.2, random_state=42)
 
-corr_matrix = df.corr().abs()
+X_train, X_test, Y_train, Y_test = train_test_split(X,Y_binary, test_size = 0.2, random_state=42)
 
-upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+df['new_feature'] = df['glucose_test_normal'] / df['A1Ctest_normal']  # Example: create a new feature
 
-strong_corr = [column for column in upper.columns if any(upper[column] > 0.5)]
-print("Strongly correlated features:", strong_corr)
+
+selector = SelectKBest(f_classif, k=10)
+X_new = selector.fit_transform(X,Y)
+
+models = {
+    'Logistic Regression': LogisticRegression(),
+    'Random Forest': RandomForestClassifier()
+}
+
+for name, model in models.items():
+    scores = cross_val_score(model, X_train, Y_train, cv=5, scoring='accuracy')
+    print(f'{name}: {scores.mean()}')
+
+
+
+best_model = models['Random Forest']
+best_model.fit(X_train, Y_train)
+y_pred = best_model.predict(X_test)
+
+print('Accuracy:', accuracy_score(Y_test, y_pred))
+print('ROC-AUC:', roc_auc_score(Y_test, y_pred))
+print(classification_report(Y_test, y_pred))
